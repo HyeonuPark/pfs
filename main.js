@@ -1,5 +1,6 @@
 var fs = require('fs');
-var mPath = require('path');
+var Path = require('path');
+var exec = require('child_process').exec;
 
 function generalPromisify(name, argLength) {
   exports[name] = function(){
@@ -52,11 +53,11 @@ for (var fnName in targets) {
 //normalize path
 function getPath(path) {
   if (typeof path === 'string' && path) {
-    path = mPath.normalize(path);
-    if (mPath.isAbsolute(path)) {
+    path = Path.normalize(path);
+    if (Path.isAbsolute(path)) {
       return path;
     } else {
-      return mPath.join(process.cwd(), path);
+      return Path.join(process.cwd(), path);
     }
   } else {
     return process.cwd();
@@ -73,7 +74,7 @@ exports.mkdirp = function mkdirp(path) {
     if (!stat.isDirectory()) throw new Error('pfs.mkdirp : A file is in this path');
   }, function(err) {
     if (err.code !== 'ENOENT') throw err;
-    return mkdirp(mPath.normalize(path + '/..')).then(function() {
+    return mkdirp(Path.normalize(path + '/..')).then(function() {
       return exports.mkdir(path);
     });
   });
@@ -89,7 +90,7 @@ exports.rm = function rm(path) {
     }
     return exports.ls(path).then(function(files) {
       return Promise.all(files.map(function(file) {
-        return rm(mPath.join(path, file));
+        return rm(Path.join(path, file));
       }));
     }).then(function() {
       return exports.rmdir(path);
@@ -116,7 +117,7 @@ exports.tree = function tree(path) {
     }
     return exports.ls(path).then(function(files) {
       return Promise.all(files.map(function(file) {
-        return tree(mPath.join(path, file));
+        return tree(Path.join(path, file));
       })).then(function(trees) {
         var result = {};
         var filesLength = files.length;
@@ -129,8 +130,19 @@ exports.tree = function tree(path) {
   });
 };
 
-//TODO: Implement GNU cp
-exports.cp = function cp(src, dest) {
-  var src = getPath(src);
-  var dest = getPath(dest);
+//execute bash script and returns it's full output string
+//options.string: Boolean; if true, resolve output as string
+exports.sh = function sh(command, options) {
+  options = options || {};
+  return new Promise(function(res, rej) {
+    exec(command, function(err, out) {
+      if (err) {
+        return rej(err);
+      }
+      if (options.string) {
+        return res(out.toString());
+      }
+      res(out);
+    });
+  });
 };
